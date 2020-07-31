@@ -52,7 +52,7 @@ class PgsqlWrapper extends AbstractDbWrapper{
 	}
 
 	public function connect(string $dbType, $dbName, $serverName, string $port, string $user, string $password, array $options) {
-		$connect_type=null;
+		$connect_type=\PGSQL_CONNECT_FORCE_NEW;
 		$identif=" user='$user' password='$password'";
 		if($options['async']??false){
 			$connect_type=\PGSQL_CONNECT_ASYNC;
