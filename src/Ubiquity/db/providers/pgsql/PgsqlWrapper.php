@@ -94,7 +94,7 @@ class PgsqlWrapper extends AbstractDbWrapper{
 	public function _optExecuteAndFetch($statement, array $values = null, $one = false) {
 		$result=\pg_execute($this->dbInstance,$statement, $values);
 		if($one){
-			return \pg_fetch_row($result);
+			return \pg_fetch_array($result,null,\PGSQL_ASSOC);
 		}
 		return \pg_fetch_all($result);
 	}
