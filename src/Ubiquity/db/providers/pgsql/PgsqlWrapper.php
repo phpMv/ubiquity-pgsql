@@ -5,6 +5,9 @@ use Ubiquity\db\providers\AbstractDbWrapper;
 class PgsqlWrapper extends AbstractDbWrapper{
 	public function queryColumn(string $sql, int $columnNumber = null) {}
 
+	public function __construct($dbType = 'pgsql') {
+		$this->quote = '"';
+	}
 	public function getDSN(string $serverName, string $port, string $dbName, string $dbType = 'mysql') {
 		$port??=5432;
 		$serverName??='127.0.0.1';
