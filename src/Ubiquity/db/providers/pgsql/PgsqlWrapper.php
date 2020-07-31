@@ -21,6 +21,13 @@ class PgsqlWrapper extends AbstractDbWrapper{
 	public function commit() {}
 
 	public function prepareStatement(string $sql) {
+		$values=\explode('?',$sql);
+		$r='';
+		$count=\count($values);
+		for ($i=1;$i<$count;$i++) {
+			$r.=$values[$i-1]."\$$i";
+		}
+		$sql=$r.$values[$count-1];
 		$id=\crc32($sql);
 		\pg_prepare($this->dbInstance, $id,$sql);
 		return $id;
@@ -40,7 +47,9 @@ class PgsqlWrapper extends AbstractDbWrapper{
 
 	public function getTablesName() {}
 
-	public function getStatement(string $sql) {}
+	public function getStatement(string $sql) {
+		return $this->prepareStatement($sql);
+	}
 
 	public function connect(string $dbType, $dbName, $serverName, string $port, string $user, string $password, array $options) {
 		$connect_type=null;
