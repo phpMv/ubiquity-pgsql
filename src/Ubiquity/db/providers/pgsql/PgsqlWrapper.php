@@ -37,6 +37,7 @@ class PgsqlWrapper extends AbstractDbWrapper {
 		$id = \crc32($sql);
 		if ($this->async) {
 			\pg_send_prepare($this->dbInstance, $id, $sql);
+			\pg_get_result($this->dbInstance);
 		} else {
 			\pg_prepare($this->dbInstance, $id, $sql);
 		}
@@ -65,7 +66,7 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	public function connect(string $dbType, $dbName, $serverName, string $port, string $user, string $password, array $options) {
 		$connect_type = $options['connect_type'] ?? \PGSQL_CONNECT_FORCE_NEW;
 		$identif = " user='$user' password='$password'";
-		$this->async = $connect_type >= \PGSQL_CONNECT_ASYNC;
+		$this->async = $options['async'] ?? false;
 		if ($options['persistent'] ?? false) {
 			return $this->dbInstance = \pg_pconnect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
 		}
