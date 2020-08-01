@@ -104,14 +104,18 @@ class PgsqlWrapper extends AbstractDbWrapper {
 			$this->waitForReady();
 			\pg_send_execute($this->dbInstance, $statement, $values);
 			$this->waitForReady();
-			while ($result = \pg_get_result($this->dbInstance) === false);
+			$result = \pg_get_result($this->dbInstance);
 		} else {
 			$result = \pg_execute($this->dbInstance, $statement, $values);
 		}
 		if ($one) {
-			return \pg_fetch_array($result, null, \PGSQL_ASSOC);
+			$rows = \pg_fetch_array($result, null, \PGSQL_ASSOC);
 		}
-		return \pg_fetch_all($result, \PGSQL_ASSOC);
+		$rows = \pg_fetch_all($result, \PGSQL_ASSOC);
+		if ($this->async) {
+			\pg_free_result($result);
+		}
+		return $rows;
 	}
 
 	private function waitForReady() {
