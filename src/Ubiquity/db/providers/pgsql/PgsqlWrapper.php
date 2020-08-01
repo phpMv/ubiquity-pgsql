@@ -33,7 +33,8 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	private function useCo($co) {
 		foreach ($this->pool as $i => $coInPool) {
 			if ($coInPool === $co) {
-				return unset($this->pool[$i]);
+				unset($this->pool[$i]);
+				return;
 			}
 		}
 	}
