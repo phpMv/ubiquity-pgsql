@@ -19,14 +19,18 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	}
 
 	private function getPool() {
-		$i = \count($this->pool) - 1;
+		$i = 0;
 		while (true) {
 			if (! pg_connection_busy($this->pool[$i])) {
 				$this->dbInstance = $this->pool[$i];
 				unset($this->pool[$i]);
 				return $this->dbInstance;
 			}
-			$i --;
+			if ($i < count($this->pool) - 1) {
+				$i ++;
+			} else {
+				$i = 0;
+			}
 		}
 	}
 
