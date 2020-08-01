@@ -2,6 +2,7 @@
 namespace Ubiquity\db\providers\pgsql;
 
 use Ubiquity\db\providers\AbstractDbWrapper;
+use Ubiquity\exceptions\DBException;
 
 class PgsqlWrapper extends AbstractDbWrapper {
 
@@ -101,26 +102,51 @@ class PgsqlWrapper extends AbstractDbWrapper {
 
 	public function _optExecuteAndFetch($statement, array $values = null, $one = false) {
 		if ($this->async) {
-			$this->waitForReady();
-			\pg_send_execute($this->dbInstance, $statement, $values);
-			$this->waitForReady();
-			$result = \pg_get_result($this->dbInstance);
-		} else {
-			$result = \pg_execute($this->dbInstance, $statement, $values);
+			return $this->sendQuery($this->dbInstance, $statement, $values, $one);
 		}
+		$result = \pg_execute($this->dbInstance, $statement, $values);
 		if ($one) {
 			$rows = \pg_fetch_array($result, null, \PGSQL_ASSOC);
 		}
 		$rows = \pg_fetch_all($result, \PGSQL_ASSOC);
-		if ($this->async) {
-			\pg_free_result($result);
-		}
 		return $rows;
 	}
 
-	private function waitForReady() {
-		while (\pg_connection_busy($this->dbInstance)) {
-			\usleep(10);
+	private function sendQuery($conn, $statement, $values, $one, $timeout = 3) {
+		\assert(\pg_get_result($conn) === false);
+
+		$socket = [
+			\pg_socket($conn)
+		];
+		$null = [];
+
+		\pg_send_execute($conn, $statement, $values);
+
+		$still_running = \pg_connection_busy($conn);
+
+		while ($still_running) {
+			stream_select($socket, $null, $null, $timeout);
+			$still_running = pg_connection_busy($conn);
+
+			if ($still_running) {
+				\pg_cancel_query($conn);
+				throw new DBException("TIMEOUT");
+			}
+		}
+
+		$res = \pg_get_result($conn);
+
+		try {
+			$error_msg = \pg_result_error($res);
+			if ($error_msg) {
+				throw new DBException($error_msg);
+			}
+			if ($one) {
+				return \pg_fetch_array($res, null, \PGSQL_ASSOC);
+			}
+			return \pg_fetch_all($res, \PGSQL_ASSOC);
+		} finally {
+			\pg_free_result($res);
 		}
 	}
 
