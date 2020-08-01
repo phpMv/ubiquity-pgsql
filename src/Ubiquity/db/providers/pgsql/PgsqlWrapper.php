@@ -108,7 +108,7 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	public function connect(string $dbType, $dbName, $serverName, string $port, string $user, string $password, array $options) {
 		$this->async = $options['async'] ?? false;
 		if ($this->async) {
-			return $this->initPool(20, $dbName, $serverName, $port, $user, $password, $options);
+			return $this->initPool($options['pool_size'] ?? 20, $dbName, $serverName, $port, $user, $password, $options);
 		}
 		return $this->dbInstance = $this->_connect($dbName, $serverName, $port, $user, $password, $options);
 	}
