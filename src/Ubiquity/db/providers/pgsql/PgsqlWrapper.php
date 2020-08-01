@@ -118,7 +118,7 @@ class PgsqlWrapper extends AbstractDbWrapper {
 			\pg_socket($this->dbInstance)
 		];
 		while ($still_running) {
-			\stream_select($socket, null, null, $timeout); // Will wait on that socket until that happens or the timeout is reached
+			\stream_select($socket, $n, $n, $timeout); // Will wait on that socket until that happens or the timeout is reached
 			$still_running = \pg_connection_busy($this->dbInstance);
 		}
 		return \pg_get_result($this->dbInstance);
