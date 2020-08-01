@@ -105,6 +105,7 @@ class PgsqlWrapper extends AbstractDbWrapper {
 			\pg_send_execute($this->dbInstance, $statement, $values);
 			$this->waitForReady();
 			$result = \pg_get_result($this->dbInstance);
+			while (\pg_get_result($this->dbInstance));
 		} else {
 			$result = \pg_execute($this->dbInstance, $statement, $values);
 		}
