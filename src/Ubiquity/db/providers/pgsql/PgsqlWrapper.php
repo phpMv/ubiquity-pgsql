@@ -104,8 +104,7 @@ class PgsqlWrapper extends AbstractDbWrapper {
 			$this->waitForReady();
 			\pg_send_execute($this->dbInstance, $statement, $values);
 			$this->waitForReady();
-			$result = \pg_get_result($this->dbInstance);
-			while (\pg_get_result($this->dbInstance));
+			while ($result = \pg_get_result($this->dbInstance) === false);
 		} else {
 			$result = \pg_execute($this->dbInstance, $statement, $values);
 		}
@@ -116,7 +115,9 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	}
 
 	private function waitForReady() {
-		while (\pg_connection_busy($this->dbInstance)) {}
+		while (\pg_connection_busy($this->dbInstance)) {
+			\usleep(10);
+		}
 	}
 
 	public function statementRowCount($statement) {}
