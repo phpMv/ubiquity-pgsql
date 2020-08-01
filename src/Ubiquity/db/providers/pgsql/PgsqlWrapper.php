@@ -1,16 +1,21 @@
 <?php
 namespace Ubiquity\db\providers\pgsql;
+
 use Ubiquity\db\providers\AbstractDbWrapper;
 
-class PgsqlWrapper extends AbstractDbWrapper{
+class PgsqlWrapper extends AbstractDbWrapper {
+
+	private $async = false;
+
 	public function queryColumn(string $sql, int $columnNumber = null) {}
 
 	public function __construct($dbType = 'pgsql') {
 		$this->quote = '"';
 	}
+
 	public function getDSN(string $serverName, string $port, string $dbName, string $dbType = 'mysql') {
-		$port??=5432;
-		$serverName??='127.0.0.1';
+		$port ??= 5432;
+		$serverName ??= '127.0.0.1';
 		return "host='$serverName' port=$port dbname='$dbName'";
 	}
 
@@ -21,15 +26,20 @@ class PgsqlWrapper extends AbstractDbWrapper{
 	public function commit() {}
 
 	public function prepareStatement(string $sql) {
-		$values=\explode('?',$sql);
-		$r='';
-		$count=\count($values);
-		for ($i=1;$i<$count;$i++) {
-			$r.=$values[$i-1]."\$$i";
+		$values = \explode('?', $sql);
+		$r = '';
+		$count = \count($values);
+		for ($i = 1; $i < $count; $i ++) {
+			$r .= $values[$i - 1] . "\$$i";
 		}
-		$sql=$r.$values[$count-1];
-		$id=\crc32($sql);
-		\pg_prepare($this->dbInstance, $id,$sql);
+		$sql = $r . $values[$count - 1];
+		$id = \crc32($sql);
+		if ($this->async) {
+			\pg_send_prepare($this->dbInstance, $id, $sql);
+		} else {
+			\pg_prepare($this->dbInstance, $id, $sql);
+		}
+
 		return $id;
 	}
 
@@ -52,12 +62,13 @@ class PgsqlWrapper extends AbstractDbWrapper{
 	}
 
 	public function connect(string $dbType, $dbName, $serverName, string $port, string $user, string $password, array $options) {
-		$connect_type=$options['connect_type']??\PGSQL_CONNECT_FORCE_NEW;
-		$identif=" user='$user' password='$password'";
-		if($options['persistent']??false){
-			return $this->dbInstance=\pg_pconnect($this->getDSN($serverName, $port, $dbName).$identif,$connect_type);
+		$connect_type = $options['connect_type'] ?? \PGSQL_CONNECT_FORCE_NEW;
+		$identif = " user='$user' password='$password'";
+		$this->async = $connect_type >= \PGSQL_CONNECT_ASYNC;
+		if ($options['persistent'] ?? false) {
+			return $this->dbInstance = \pg_pconnect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
 		}
-		return $this->dbInstance=\pg_connect($this->getDSN($serverName, $port, $dbName).$identif,$connect_type);
+		return $this->dbInstance = \pg_connect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
 	}
 
 	public function groupConcat(string $fields, string $separator): string {}
@@ -87,13 +98,18 @@ class PgsqlWrapper extends AbstractDbWrapper{
 	public function beginTransaction() {}
 
 	public function _optPrepareAndExecute($sql, array $values = null, $one = false) {}
-	
+
 	public function _optExecuteAndFetch($statement, array $values = null, $one = false) {
-		$result=\pg_execute($this->dbInstance,$statement, $values);
-		if($one){
-			return \pg_fetch_array($result,null,\PGSQL_ASSOC);
+		if ($this->async) {
+			\pg_send_execute($this->dbInstance, $statement, $values);
+			$result = \pg_get_result($this->dbInstance);
+		} else {
+			$result = \pg_execute($this->dbInstance, $statement, $values);
 		}
-		return \pg_fetch_all($result);
+		if ($one) {
+			return \pg_fetch_array($result, null, \PGSQL_ASSOC);
+		}
+		return \pg_fetch_all($result, \PGSQL_ASSOC);
 	}
 
 	public function statementRowCount($statement) {}
@@ -103,6 +119,5 @@ class PgsqlWrapper extends AbstractDbWrapper{
 	public function executeStatement($statement, array $values = null) {}
 
 	public function getPrimaryKeys($tableName) {}
-
 }
 
