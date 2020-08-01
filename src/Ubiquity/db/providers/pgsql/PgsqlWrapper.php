@@ -8,6 +8,40 @@ class PgsqlWrapper extends AbstractDbWrapper {
 
 	private $async = false;
 
+	private $pool = [];
+
+	private $coStatements = [];
+
+	private function initPool($size, $dbName, $serverName, $port, $user, $password, $options) {
+		while ($size --) {
+			$this->pool[] = $this->_connect($dbName, $serverName, $port, $user, $password, $options);
+		}
+	}
+
+	private function getPool() {
+		$i = \count($this->pool) - 1;
+		while (true) {
+			if (! pg_connection_busy($this->pool[$i])) {
+				$this->dbInstance = $this->pool[$i];
+				unset($this->pool[$i]);
+				return $this->dbInstance;
+			}
+			$i --;
+		}
+	}
+
+	private function useCo($co) {
+		foreach ($this->pool as $i => $coInPool) {
+			if ($coInPool === $co) {
+				return unset($this->pool[$i]);
+			}
+		}
+	}
+
+	private function freePool($co) {
+		$this->pool[] = $co;
+	}
+
 	public function queryColumn(string $sql, int $columnNumber = null) {}
 
 	public function __construct($dbType = 'pgsql') {
@@ -36,8 +70,11 @@ class PgsqlWrapper extends AbstractDbWrapper {
 		$sql = $r . $values[$count - 1];
 		$id = \crc32($sql);
 		if ($this->async) {
+			$this->getPool();
 			\pg_send_prepare($this->dbInstance, $id, $sql);
 			\pg_get_result($this->dbInstance);
+			$this->coStatements[$id] = $this->dbInstance;
+			$this->freePool($this->dbInstance);
 		} else {
 			\pg_prepare($this->dbInstance, $id, $sql);
 		}
@@ -64,13 +101,20 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	}
 
 	public function connect(string $dbType, $dbName, $serverName, string $port, string $user, string $password, array $options) {
+		$this->async = $options['async'] ?? false;
+		if ($this->async) {
+			return $this->initPool(20, $dbName, $serverName, $port, $user, $password, $options);
+		}
+		return $this->dbInstance = $this->_connect($dbName, $serverName, $port, $user, $password, $options);
+	}
+
+	private function _connect($dbName, $serverName, string $port, string $user, string $password, array $options) {
 		$connect_type = $options['connect_type'] ?? \PGSQL_CONNECT_FORCE_NEW;
 		$identif = " user='$user' password='$password'";
-		$this->async = $options['async'] ?? false;
 		if ($options['persistent'] ?? false) {
-			return $this->dbInstance = \pg_pconnect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
+			return \pg_pconnect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
 		}
-		return $this->dbInstance = \pg_connect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
+		return \pg_connect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
 	}
 
 	public function groupConcat(string $fields, string $separator): string {}
@@ -103,7 +147,9 @@ class PgsqlWrapper extends AbstractDbWrapper {
 
 	public function _optExecuteAndFetch($statement, array $values = null, $one = false) {
 		if ($this->async) {
-			return $this->sendQuery($this->dbInstance, $statement, $values, $one);
+			$instance = $this->coStatements[$statement];
+			$this->useCo($instance);
+			return $this->sendQuery($instance, $statement, $values, $one);
 		}
 		$result = \pg_execute($this->dbInstance, $statement, $values);
 		if ($one) {
@@ -148,6 +194,7 @@ class PgsqlWrapper extends AbstractDbWrapper {
 			return \pg_fetch_all($res, \PGSQL_ASSOC);
 		} finally {
 			\pg_free_result($res);
+			$this->freePool($conn);
 		}
 	}
 
