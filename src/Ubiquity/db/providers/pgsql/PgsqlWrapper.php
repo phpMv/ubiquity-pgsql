@@ -102,7 +102,7 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	public function _optExecuteAndFetch($statement, array $values = null, $one = false) {
 		if ($this->async) {
 			\pg_send_execute($this->dbInstance, $statement, $values);
-			$result = \pg_get_result($this->dbInstance);
+			$result = $this->getAsyncResult();
 		} else {
 			$result = \pg_execute($this->dbInstance, $statement, $values);
 		}
@@ -110,6 +110,18 @@ class PgsqlWrapper extends AbstractDbWrapper {
 			return \pg_fetch_array($result, null, \PGSQL_ASSOC);
 		}
 		return \pg_fetch_all($result, \PGSQL_ASSOC);
+	}
+
+	private function getAsyncResult($timeout = 3) {
+		$still_running = \pg_connection_busy($this->dbInstance);
+		$socket = [
+			\pg_socket($this->dbInstance)
+		];
+		while ($still_running) {
+			\stream_select($socket, null, null, $timeout); // Will wait on that socket until that happens or the timeout is reached
+			$still_running = \pg_connection_busy($this->dbInstance);
+		}
+		return \pg_get_result($this->dbInstance);
 	}
 
 	public function statementRowCount($statement) {}
