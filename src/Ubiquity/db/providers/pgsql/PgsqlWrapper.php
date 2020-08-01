@@ -2,50 +2,8 @@
 namespace Ubiquity\db\providers\pgsql;
 
 use Ubiquity\db\providers\AbstractDbWrapper;
-use Ubiquity\exceptions\DBException;
 
 class PgsqlWrapper extends AbstractDbWrapper {
-
-	private $async = false;
-
-	private $pool = [];
-
-	private $coStatements = [];
-
-	private function initPool($size, $dbName, $serverName, $port, $user, $password, $options) {
-		while ($size --) {
-			$this->pool[] = $this->_connect($dbName, $serverName, $port, $user, $password, $options);
-		}
-	}
-
-	private function getPool() {
-		$i = 0;
-		while (true) {
-			if (! pg_connection_busy($this->pool[$i])) {
-				$this->dbInstance = $this->pool[$i];
-				unset($this->pool[$i]);
-				return $this->dbInstance;
-			}
-			if ($i < count($this->pool) - 1) {
-				$i ++;
-			} else {
-				$i = 0;
-			}
-		}
-	}
-
-	private function useCo($co) {
-		foreach ($this->pool as $i => $coInPool) {
-			if ($coInPool === $co) {
-				unset($this->pool[$i]);
-				return;
-			}
-		}
-	}
-
-	private function freePool($co) {
-		$this->pool[] = $co;
-	}
 
 	public function queryColumn(string $sql, int $columnNumber = null) {}
 
@@ -73,17 +31,8 @@ class PgsqlWrapper extends AbstractDbWrapper {
 			$r .= $values[$i - 1] . "\$$i";
 		}
 		$sql = $r . $values[$count - 1];
-		$id = \crc32($sql);
-		if ($this->async) {
-			$this->getPool();
-			\pg_send_prepare($this->dbInstance, $id, $sql);
-			\pg_get_result($this->dbInstance);
-			$this->coStatements[$id] = $this->dbInstance;
-			$this->freePool($this->dbInstance);
-		} else {
-			\pg_prepare($this->dbInstance, $id, $sql);
-		}
-
+		$id = \md5($sql);
+		\pg_prepare($this->dbInstance, $id, $sql);
 		return $id;
 	}
 
@@ -106,20 +55,12 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	}
 
 	public function connect(string $dbType, $dbName, $serverName, string $port, string $user, string $password, array $options) {
-		$this->async = $options['async'] ?? false;
-		if ($this->async) {
-			return $this->initPool($options['pool_size'] ?? 20, $dbName, $serverName, $port, $user, $password, $options);
-		}
-		return $this->dbInstance = $this->_connect($dbName, $serverName, $port, $user, $password, $options);
-	}
-
-	private function _connect($dbName, $serverName, string $port, string $user, string $password, array $options) {
 		$connect_type = $options['connect_type'] ?? \PGSQL_CONNECT_FORCE_NEW;
 		$identif = " user='$user' password='$password'";
 		if ($options['persistent'] ?? false) {
-			return \pg_pconnect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
+			return $this->dbInstance = \pg_pconnect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
 		}
-		return \pg_connect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
+		return $this->dbInstance = \pg_connect($this->getDSN($serverName, $port, $dbName) . $identif, $connect_type);
 	}
 
 	public function groupConcat(string $fields, string $separator): string {}
@@ -151,56 +92,11 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	public function _optPrepareAndExecute($sql, array $values = null, $one = false) {}
 
 	public function _optExecuteAndFetch($statement, array $values = null, $one = false) {
-		if ($this->async) {
-			$instance = $this->coStatements[$statement];
-			$this->useCo($instance);
-			return $this->sendQuery($instance, $statement, $values, $one);
-		}
 		$result = \pg_execute($this->dbInstance, $statement, $values);
 		if ($one) {
-			$rows = \pg_fetch_array($result, null, \PGSQL_ASSOC);
+			return \pg_fetch_array($result, 0, \PGSQL_ASSOC);
 		}
-		$rows = \pg_fetch_all($result, \PGSQL_ASSOC);
-		return $rows;
-	}
-
-	private function sendQuery($conn, $statement, $values, $one, $timeout = 3) {
-		\assert(\pg_get_result($conn) === false);
-
-		$socket = [
-			\pg_socket($conn)
-		];
-		$null = [];
-
-		\pg_send_execute($conn, $statement, $values);
-
-		$still_running = \pg_connection_busy($conn);
-
-		while ($still_running) {
-			stream_select($socket, $null, $null, $timeout);
-			$still_running = pg_connection_busy($conn);
-
-			if ($still_running) {
-				\pg_cancel_query($conn);
-				throw new DBException("TIMEOUT");
-			}
-		}
-
-		$res = \pg_get_result($conn);
-
-		try {
-			$error_msg = \pg_result_error($res);
-			if ($error_msg) {
-				throw new DBException($error_msg);
-			}
-			if ($one) {
-				return \pg_fetch_array($res, null, \PGSQL_ASSOC);
-			}
-			return \pg_fetch_all($res, \PGSQL_ASSOC);
-		} finally {
-			\pg_free_result($res);
-			$this->freePool($conn);
-		}
+		return \pg_fetch_all($result, \PGSQL_ASSOC);
 	}
 
 	public function statementRowCount($statement) {}
@@ -211,4 +107,3 @@ class PgsqlWrapper extends AbstractDbWrapper {
 
 	public function getPrimaryKeys($tableName) {}
 }
-
