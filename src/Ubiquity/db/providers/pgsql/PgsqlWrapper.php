@@ -100,7 +100,11 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	}
 
 	public function prepareNamedStatement(string $name, string $sql) {
-		\pg_send_prepare($this->dbInstance, $name, $sql);
+		$db = $this->dbInstance;
+		if (! \pg_connection_busy($db)) {
+			\pg_send_prepare($db, $name, $sql);
+			\pg_get_result($db);
+		}
 	}
 
 	public function executeNamedStatement(string $name, array $values = []) {
