@@ -110,7 +110,7 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	public function executeNamedStatement(string $name, array $values = []) {
 		$db = $this->dbInstance;
 		if (! \pg_connection_busy($db)) {
-			if (\pg_send_execute($this->dbInstance, $name, $values)) {
+			if (\pg_send_execute($db, $name, $values)) {
 				return \pg_get_result($db);
 			}
 		}
