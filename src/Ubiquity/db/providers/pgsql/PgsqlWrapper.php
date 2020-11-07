@@ -111,7 +111,8 @@ class PgsqlWrapper extends AbstractDbWrapper {
 		$db = $this->dbInstance;
 		if (! \pg_connection_busy($db)) {
 			if (\pg_send_execute($db, $name, $values)) {
-				return \pg_get_result($db);
+				$result = \pg_get_result($db);
+				\pg_fetch_array($result, null, \PGSQL_ASSOC);
 			}
 		}
 		return false;
