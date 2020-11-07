@@ -5,6 +5,8 @@ use Ubiquity\db\providers\AbstractDbWrapper;
 
 class PgsqlWrapper extends AbstractDbWrapper {
 
+	private $results = [];
+
 	public function queryColumn(string $sql, int $columnNumber = null) {}
 
 	public function __construct($dbType = 'pgsql') {
@@ -111,11 +113,19 @@ class PgsqlWrapper extends AbstractDbWrapper {
 		$db = $this->dbInstance;
 		if (! \pg_connection_busy($db)) {
 			if (\pg_send_execute($db, $name, $values)) {
-				$result = \pg_get_result($db);
-				\pg_fetch_array($result, null, \PGSQL_ASSOC);
+				$this->results[$name][] = \pg_get_result($db);
+				return true;
 			}
 		}
 		return false;
+	}
+
+	public function fetchNamedResults(string $name) {
+		$return = [];
+		foreach ($this->results[$name] as $result) {
+			$return = \array_merge($return, \pg_fetch_assoc($result));
+		}
+		return $return;
 	}
 
 	public function statementRowCount($statement) {}
