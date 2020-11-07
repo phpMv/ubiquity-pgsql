@@ -99,6 +99,21 @@ class PgsqlWrapper extends AbstractDbWrapper {
 		return \pg_fetch_all($result, \PGSQL_ASSOC);
 	}
 
+	public function prepareNamedStatement(string $name, string $sql) {
+		\pg_send_prepare($this->dbInstance, $name, $sql);
+	}
+
+	public function executeNamedStatement(string $name, array $values = []) {
+		if (! \pg_connection_busy($this->dbInstance)) {
+			return \pg_send_execute($this->dbInstance, $name, $values);
+		}
+		return false;
+	}
+
+	public function getAsyncResult() {
+		return \pg_get_result($this->dbInstance);
+	}
+
 	public function statementRowCount($statement) {}
 
 	public function savePoint($level) {}
