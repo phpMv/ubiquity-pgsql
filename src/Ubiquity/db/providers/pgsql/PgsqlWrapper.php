@@ -104,14 +104,13 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	}
 
 	public function executeNamedStatement(string $name, array $values = []) {
-		if (! \pg_connection_busy($this->dbInstance)) {
-			return \pg_send_execute($this->dbInstance, $name, $values);
+		$db = $this->dbInstance;
+		if (! \pg_connection_busy($db)) {
+			if (\pg_send_execute($this->dbInstance, $name, $values)) {
+				return \pg_get_result($db);
+			}
 		}
 		return false;
-	}
-
-	public function getAsyncResult() {
-		return \pg_get_result($this->dbInstance);
 	}
 
 	public function statementRowCount($statement) {}
