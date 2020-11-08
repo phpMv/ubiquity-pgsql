@@ -123,7 +123,7 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	public function fetchNamedResults(string $name) {
 		$return = [];
 		foreach ($this->results[$name] as $result) {
-			$return = \array_merge($return, \pg_fetch_assoc($result));
+			$return[] = \pg_fetch_array($result, null, \PGSQL_ASSOC);
 		}
 		return $return;
 	}
