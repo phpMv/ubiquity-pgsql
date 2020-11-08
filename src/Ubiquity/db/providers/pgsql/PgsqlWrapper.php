@@ -123,7 +123,9 @@ class PgsqlWrapper extends AbstractDbWrapper {
 	public function fetchNamedResults(string $name) {
 		$return = [];
 		foreach ($this->results[$name] as $result) {
-			$return[] = \pg_fetch_array($result, null, \PGSQL_ASSOC);
+			if ($res = \pg_fetch_array($result, null, \PGSQL_ASSOC)) {
+				$return[] = $res;
+			}
 		}
 		return $return;
 	}
