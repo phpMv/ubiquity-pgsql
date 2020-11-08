@@ -113,21 +113,9 @@ class PgsqlWrapper extends AbstractDbWrapper {
 		$db = $this->dbInstance;
 		if (! \pg_connection_busy($db)) {
 			if (\pg_send_execute($db, $name, $values)) {
-				$this->results[$name][] = \pg_get_result($db);
-				return true;
+				yield \pg_get_result($db);
 			}
 		}
-		return false;
-	}
-
-	public function fetchNamedResults(string $name) {
-		$return = [];
-		foreach ($this->results[$name] as $result) {
-			if ($res = \pg_fetch_array($result, null, \PGSQL_ASSOC)) {
-				$return[] = $res;
-			}
-		}
-		return $return;
 	}
 
 	public function statementRowCount($statement) {}
